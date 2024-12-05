@@ -1,0 +1,18 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+
+        "moduleResolution": "Bundler",
+
+        "outDir": "./dist",
+        "baseUrl": ".",
+
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "isolatedModules": true,
+        "noUnusedLocals": true,
+        "forceConsistentCasingInFileNames": true
+    }
+}
