@@ -1,6 +1,7 @@
-import { LumiDB, PointCloudMaterial } from "@lumidb/lumidb";
+import { LumiDB } from "@lumidb/lumidb";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { CustomPointMaterial } from "./material";
 
 // Set up a minimal 3D viewer with three.js
 
@@ -29,30 +30,33 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-animate();
-
 document.querySelector("#viewer")?.appendChild(renderer.domElement);
 
-// Ask for the LumiDB API key, store it and fetch points from LumiDB
-const apikey = localStorage.getItem("lumidb-apikey") ?? prompt("Enter your LumiDB API key:");
+async function loadPoints() {
+    // Ask for the LumiDB API key, store it and fetch points from LumiDB
+    const apikey = localStorage.getItem("lumidb-apikey") ?? prompt("Enter your LumiDB API key:");
 
-if (apikey) {
+    if (!apikey) {
+        document.body.innerHTML = "No API key provided.";
+        return;
+    }
+
     localStorage.setItem("lumidb-apikey", apikey);
 
     const lumidb = new LumiDB("https://api.lumidb.com", apikey);
 
-    const res = await lumidb.query({
+    const resp = await lumidb.query({
         tableName: "turku",
         queryBoundary: {
             Polygon: [
                 [
-                    [ 2488624, 8505802 ],
-                    [ 2488741, 8505971 ],
-                    [ 2489471, 8505522 ],
-                    [ 2489248, 8505339 ],
-                    [ 2488624, 8505802 ]
-                ]
-            ]
+                    [2488624, 8505802],
+                    [2488741, 8505971],
+                    [2489471, 8505522],
+                    [2489248, 8505339],
+                    [2488624, 8505802],
+                ],
+            ],
         },
         queryCRS: "EPSG:3857",
         maxPoints: 5_000_000,
@@ -61,16 +65,28 @@ if (apikey) {
         classFilter: null,
     });
 
-    if (res.pointCount === 0) {
+    if (resp.pointCount === 0) {
         alert("The response contains no points!");
     } else {
-        const material = new PointCloudMaterial({
-            colorMode: "classification",
-            pointSize: 3.0
-        });
+        const material = new CustomPointMaterial();
+        setInterval(() => {
+            material.setColorMode(Math.floor(Math.random() * 5) + 1);
+            material.setPointSize(Math.random() * 6.0);
+        }, 2000);
+
+        // or alternatively, you could use PointCloudMaterial provided by the library:
+        // const material = new PointCloudMaterial({
+        //     colorMode: "classification",
+        //     pointSize: 3.0
+        // });
+
+        // or three.js builtin PointsMaterial
+        // const material = new THREE.PointsMaterial({ size: 1, color: 0xff00ff, opacity: 0.7, transparent: true });
+
         scene.remove(loadingCube);
-        scene.add(new THREE.Points(res.pointGeometry, material));
+        scene.add(new THREE.Points(resp.pointGeometry, material));
     }
-} else {
-    document.body.innerHTML = "No API key provided.";
 }
+
+animate();
+loadPoints();
