@@ -43,7 +43,7 @@ async function loadPoints() {
 
     localStorage.setItem("lumidb-apikey", apikey);
 
-    const lumidb = new LumiDB("https://api.lumidb.com", apikey);
+    const lumidb = new LumiDB({ baseUrl: "https://api.lumidb.com", auth: { apikey: apikey } });
 
     const resp = await lumidb.query({
         tableName: "turku",
@@ -61,7 +61,7 @@ async function loadPoints() {
                 [null, null], // optional Z coordinate range
             ],
         },
-        queryCRS: "EPSG:3857",
+        queryProj: "EPSG:3857",
         maxPoints: 5_000_000,
         maxDensity: null,
         sourceFileFilter: null,
