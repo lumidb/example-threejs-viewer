@@ -12,11 +12,11 @@
     "license": "LumiDB",
     "description": "LumiDB + three.js example",
     "dependencies": {
-        "@lumidb/lumidb": "0.5.1",
+        "@lumidb/lumidb": "0.5.2",
         "@types/three": "0.152.0",
         "three": "^0.152.0",
-        "typescript": "^5.6.2",
-        "vite": "^6.2.5"
+        "typescript": "^5.8.3",
+        "vite": "^6.3.5"
     },
     "optionalDependencies": {
         "@rollup/rollup-linux-x64-gnu": "^4.24.3"
