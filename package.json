@@ -12,7 +12,7 @@
     "license": "LumiDB",
     "description": "LumiDB + three.js example",
     "dependencies": {
-        "@lumidb/lumidb": "0.5.2",
+        "@lumidb/lumidb": "0.5.3",
         "@types/three": "0.152.0",
         "three": "^0.152.0",
         "typescript": "^5.8.3",

@@ -1,20 +1,19 @@
 import { LumiDB, PointCloudMaterial } from "@lumidb/lumidb";
 import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { MapControls } from "three/addons/controls/MapControls.js";
 
-const LUMIDB_URL = "https://staging.lumidb.com";
-const TABLE_NAME = "hesa_async";
+const LUMIDB_URL = "https://lumidb.example.com";
+const TABLE_NAME = "example_table";
 
 // Set up a minimal 3D viewer with three.js
-
-const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 10_000);
+const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.5, 50_000);
 camera.up.set(0, 0, 1);
-camera.position.set(0, -3000, 2000);
+camera.position.set(0, -3000, 3000);
 
 const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 
-const controls = new OrbitControls(camera, renderer.domElement);
+const controls = new MapControls(camera, renderer.domElement);
 controls.autoRotate = true;
 controls.addEventListener("end", () => {
     controls.autoRotate = false;
@@ -22,19 +21,15 @@ controls.addEventListener("end", () => {
 
 const scene = new THREE.Scene();
 
-const loadingCube = new THREE.Mesh(new THREE.BoxGeometry(4, 4, 4), new THREE.MeshNormalMaterial());
-scene.add(loadingCube);
-
 function animate() {
     requestAnimationFrame(animate);
-    loadingCube.rotateZ(0.05);
     controls.update();
     renderer.render(scene, camera);
 }
 
 const pointsMaterial = new PointCloudMaterial({
     colorMode: "rgb",
-    pointSize: 2.0,
+    pointSize: 3.0,
 });
 
 document.querySelector("#viewer")?.appendChild(renderer.domElement);
@@ -45,9 +40,7 @@ async function initializeTiles() {
     if (!apikey) {
         throw new Error("No API key provided.");
     }
-
     sessionStorage.setItem("lumidb-apikey", apikey);
-
     const lumidb = new LumiDB({ baseUrl: LUMIDB_URL, auth: { apikey: apikey } });
 
     // Get the tileset
@@ -60,85 +53,92 @@ async function initializeTiles() {
         sourceFileFilter: null,
     });
 
+    // Keep track of loaded tiles to avoid loading same tile multiple times.
+    const loadedTiles = new Set<string>();
+
     // Load the root tile
-    const loadedNodes = new Set<string>();
     const rootTile = await lumidb.get3DTile({
         tableName: TABLE_NAME,
         content: tileset.root.content,
         output_type: "threejs",
     });
-    const threePoints = new THREE.Points(rootTile.pointGeometry, pointsMaterial);
-    scene.add(threePoints);
-    scene.remove(loadingCube);
-    loadedNodes.add(tileset.root.content.uri);
+    const rootPoints = new THREE.Points(rootTile.pointGeometry, pointsMaterial);
+    scene.add(rootPoints);
+    loadedTiles.add(tileset.root.tileId);
+
+    // For simplicity, we'll center everything around the root tile.
     const rootOffset = new THREE.Vector3().fromArray(rootTile.offset);
 
     async function loadMore() {
-        const nodesToLoad: Array<[typeof tileset.root, number]> = [];
+        const tilesToLoad: Array<[typeof tileset.root, number]> = [];
 
-        // Walk the hierarchy in BFS order to find the next nodes to load
+        // Walk the hierarchy in BFS order to evaluate the view-space error of each tile.
         const queue = [tileset.root];
         while (true) {
-            const node = queue.shift();
-            if (!node) {
+            const tile = queue.shift();
+            if (!tile) {
                 break;
             }
 
-            // Estimate the view-space error based on the distance to the camera.
-            // We'd probably want to check if it's in the frustum too.
-            const center = getCenter(node.boundingVolume.region).sub(rootOffset);
-            const error = node.geometricError / new THREE.Vector3().subVectors(center, camera.position).length();
+            // Estimate the error based on the distance to the camera.
+            // We'd probably want to check if it's in the frustum, and maybe prioritize nodes in the center of the screen.
+            const center = getCenter(tile.boundingVolume.region).sub(rootOffset);
+            const viewError = tile.geometricError / new THREE.Vector3().subVectors(center, camera.position).length();
 
-            if (!loadedNodes.has(node.content.uri)) {
-                nodesToLoad.push([node, error]);
+            if (!loadedTiles.has(tile.tileId)) {
+                tilesToLoad.push([tile, viewError]);
             }
 
             // No need to walk the subrees if the error is small.
-            if (error > 0.01) {
-                for (const child of node.children) {
+            if (viewError > 0.01) {
+                for (const child of tile.children) {
                     queue.push(child);
                 }
             }
         }
 
-        // Sort the nodes by error, so we load the most important ones first.
-        nodesToLoad.sort((a, b) => b[1] - a[1]);
+        console.log("Tiles to load:", tilesToLoad.length);
 
-        // Only load first 10 nodes.
-        nodesToLoad.splice(10);
+        // Sort the tiles by error, so we load the most important ones first.
+        tilesToLoad.sort((a, b) => b[1] - a[1]);
 
-        for (const [node, _] of nodesToLoad) {
+        // Only load 10 nodes at a time.
+        tilesToLoad.splice(10);
+
+        for (const [tile, _] of tilesToLoad) {
+            // Instead of awaiting here, we'd want to load the tiles in parallel.
             const tileData = await lumidb.get3DTile({
                 tableName: TABLE_NAME,
-                content: node.content,
+                content: tile.content,
                 output_type: "threejs",
             });
 
-            const offset = new THREE.Vector3().subVectors(new THREE.Vector3().fromArray(tileData.offset), rootOffset);
+            const tileOffset = new THREE.Vector3().fromArray(tileData.offset).sub(rootOffset);
             const threePoints = new THREE.Points(tileData.pointGeometry, pointsMaterial);
-            threePoints.position.copy(offset);
+            threePoints.position.copy(tileOffset);
+
             scene.add(threePoints);
+            loadedTiles.add(tile.tileId);
         }
     }
 
-    // bind the loadMore function to the button
+    // For simplicity, bind the loadMore function to a button. In real usage, we'd want to load and unload tiles
+    // in the background as the user navigates.
     const pointsButton = document.getElementById("load-more-points");
     pointsButton?.addEventListener("click", () => {
         loadMore().catch((error) => {
+            console.error(error);
             document.body.innerHTML = "Error: " + error;
         });
     });
     pointsButton?.style.setProperty("visibility", "visible");
 }
 
-// Get the center of a 3D tileset bounding volume.
-// Order of the bounding volume is [west, south, east, north, bottom, top]
-function getCenter(bounds: number[]) {
-    return new THREE.Vector3((bounds[2] + bounds[0]) / 2, (bounds[3] + bounds[1]) / 2, (bounds[5] + bounds[4]) / 2);
+// 3D Tileset bounding region is defined as [west, south, bottom, east, north, top]
+function getCenter(region: number[]) {
+    return new THREE.Vector3((region[0] + region[2]) / 2, (region[1] + region[3]) / 2, (region[4] + region[5]) / 2);
 }
 
 animate();
 
-initializeTiles().catch((error) => {
-    document.body.innerHTML = "Error: " + error;
-});
+initializeTiles();
