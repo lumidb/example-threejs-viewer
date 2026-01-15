@@ -13,6 +13,5 @@
         "skipLibCheck": true,
         "isolatedModules": true,
         "noUnusedLocals": true,
-        "forceConsistentCasingInFileNames": true
-    }
+    },
 }

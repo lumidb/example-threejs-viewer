@@ -1,13 +1,21 @@
 import * as THREE from "three";
 
-export class CustomPointMaterial extends THREE.ShaderMaterial {
-    constructor() {
+export const ColorMode = {
+    rgb: 1,
+    intensity: 2,
+    classification: 3,
+};
+
+/** Example for implementing a custom material for rendering the points.
+ *  NOTE: Not currently used in the example by default. */
+export class ExampleCustomPointMaterial extends THREE.ShaderMaterial {
+    constructor(pointSize: number) {
         super({
             glslVersion: "300 es",
 
             uniforms: {
-                uColorMode: { value: 3 },
-                uPointSize: { value: 5.0 },
+                uColorMode: { value: ColorMode["rgb"] },
+                uPointSize: { value: pointSize },
             },
 
             vertexShader: `
@@ -47,15 +55,8 @@ export class CustomPointMaterial extends THREE.ShaderMaterial {
                         /* CLASSIFICATION */
                         vColor = randomColor(classification);
                     }
-                    else if (uColorMode == 4) {
-                        /* POINT SOURCE ID */
-                        vColor = randomColor(point_source_id);
-                    }
-                    else if (uColorMode == 5) {
-                        /* SOURCE FILE ID */
-                        vColor = randomColor(float(source_file_id));
-                    } else {
-                        vColor=vec3(1.0,0.0,0.0);
+                    else {
+                        vColor = vec3(1.0,0.0,0.0);
                     }
                 }
             `,
@@ -76,8 +77,8 @@ export class CustomPointMaterial extends THREE.ShaderMaterial {
         });
     }
 
-    setColorMode(colorMode: number) {
-        this.uniforms.uColorMode.value = colorMode;
+    setColorMode(colorMode: keyof typeof ColorMode) {
+        this.uniforms.uColorMode.value = ColorMode[colorMode];
     }
 
     setPointSize(pointSize: number) {
